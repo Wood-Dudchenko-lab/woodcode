@@ -1,7 +1,7 @@
 from pathlib import Path
 from pynwb import NWBHDF5IO, NWBFile
 from pynwb.ecephys import ElectricalSeries, LFP, TimeSeries
-from pynwb.behavior import SpatialSeries, Position, CompassDirection
+from pynwb.behavior import SpatialSeries, Position, CompassDirection, BehavioralEvents
 from pynwb.epoch import TimeIntervals
 from pynwb.file import Subject
 from hdmf.backends.hdf5.h5_utils import H5DataIO
@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import warnings
 import pynapple as nap
+
 
 def create_nwb_file(metadata, start_time):
     # get info from folder name
@@ -49,8 +50,8 @@ def create_nwb_file(metadata, start_time):
 
     return nwbfile
 
-def load_nwb_file(file_path, file_name):
 
+def load_nwb_file(file_path, file_name):
     # load NWB file
     file_name = file_name + '.nwb'
     data = nap.load_file(str(file_path / file_name))
@@ -111,7 +112,6 @@ def add_events(nwbfile, events, event_name="events"):
     nwbfile.add_time_intervals(events_table)
 
     return nwbfile
-
 
 
 def add_units(nwbfile, xml_data, spikes, waveforms, shank_id):
@@ -206,7 +206,7 @@ def add_probes(nwbfile, metadata, xmldata, nrsdata):
     )
 
     # Print how shanks are called
-    #print("Shank names:", shank_names)
+    # print("Shank names:", shank_names)
 
     return nwbfile
 
@@ -250,7 +250,6 @@ def add_tracking(nwbfile, pos, ang=None):
 
 
 def add_sleep(nwbfile, sleep_path, folder_name):
-
     sleep_file = sleep_path / (folder_name + '.SleepState.states.mat')
     emg_file = sleep_path / (folder_name + '.EMGFromLFP.LFP.mat')
 
@@ -300,7 +299,7 @@ def add_sleep(nwbfile, sleep_path, folder_name):
     # Create an extracellular ephys module or add to the existing one
     if 'ecephys' not in nwbfile.processing:
         ecephys_module = nwbfile.create_processing_module(name='ecephys',
-                                                      description='Processed electrophysiological signals'
+                                                          description='Processed electrophysiological signals'
                                                           )
         ecephys_module.add(emg)
     else:
@@ -325,7 +324,7 @@ def add_epochs(nwbfile, epochs, metadata):
     print('Adding epochs to NWB file...')
 
     # Extract all tags from metadata
-    epoch_tags = {str(i+1): metadata['epoch'].get(str(i+1), None) for i in range(epochs.shape[0])}
+    epoch_tags = {str(i + 1): metadata['epoch'].get(str(i + 1), None) for i in range(epochs.shape[0])}
 
     # Check that all epochs have corresponding tags
     if None in epoch_tags.values():
@@ -337,15 +336,13 @@ def add_epochs(nwbfile, epochs, metadata):
         nwbfile.add_epoch(
             start_time=float(epochs['Start'][epoch]),
             stop_time=float(epochs['End'][epoch]),
-            tags=epoch_tags[str(epoch+1)]
+            tags=epoch_tags[str(epoch + 1)]
         )
 
     return nwbfile
 
 
-
 def add_lfp(nwbfile, lfp_path, xml_data):
-
     print('Adding LFP to the NWB file...')
 
     all_table_region = nwbfile.create_electrode_table_region(
@@ -357,7 +354,8 @@ def add_lfp(nwbfile, lfp_path, xml_data):
     chan_order = np.concatenate(xml_data['spike_groups'])
 
     # lazy load LFP
-    lfp_data = nap.load_eeg(filepath=lfp_path, channel=None, n_channels=xml_data['n_channels'], frequency=float(xml_data['eeg_sampling_rate']), precision='int16',
+    lfp_data = nap.load_eeg(filepath=lfp_path, channel=None, n_channels=xml_data['n_channels'],
+                            frequency=float(xml_data['eeg_sampling_rate']), precision='int16',
                             bytes_size=2)
     lfp_data = lfp_data[:, chan_order]  # get only probe channels
 
@@ -379,19 +377,16 @@ def add_lfp(nwbfile, lfp_path, xml_data):
     # Create an extracellular ephys module or add to the existing one
     if 'ecephys' not in nwbfile.processing:
         ecephys_module = nwbfile.create_processing_module(name='ecephys',
-                                                      description='Processed electrophysiological signals'
+                                                          description='Processed electrophysiological signals'
                                                           )
         ecephys_module.add(lfp)
     else:
         nwbfile.processing['ecephys'].add(lfp)
 
-
     return nwbfile
 
 
-
 def add_misc_tsd(nwbfile, tsd, name='unnamed_series', description='', unit=''):
-
     """
     Adds a pynapple Tsd or TsdFrame to the 'misc' processing module in an NWB file.
 
@@ -415,7 +410,6 @@ def add_misc_tsd(nwbfile, tsd, name='unnamed_series', description='', unit=''):
         )
     else:
         module = nwbfile.processing['misc']
-
 
     # make a TimeSeries
 
@@ -512,13 +506,123 @@ def collect_nwb_metadata(nwbfile):
             metadata["Time Intervals"][interval_name] = interval_table.to_dataframe().to_dict()
 
     # Extract analysis metadata
-    metadata["Analysis"] = {name: type(obj).__name__ for name, obj in nwbfile.analysis.items()} if nwbfile.analysis else {}
+    metadata["Analysis"] = {name: type(obj).__name__ for name, obj in
+                            nwbfile.analysis.items()} if nwbfile.analysis else {}
 
     # Extract lab metadata
-    metadata["Lab Metadata"] = {name: type(obj).__name__ for name, obj in nwbfile.lab_meta_data.items()} if nwbfile.lab_meta_data else {}
+    metadata["Lab Metadata"] = {name: type(obj).__name__ for name, obj in
+                                nwbfile.lab_meta_data.items()} if nwbfile.lab_meta_data else {}
 
     # Print metadata in a structured way
     print("\n=== NWB Metadata ===")
     pprint.pprint(metadata, width=120, compact=False)
 
     return metadata
+
+
+def create_spatial_series(name, data, description, unit):
+    """
+    Create a SpatialSeries object for behavioral data.
+
+    Parameters
+    ----------
+    name : str
+        Name of the spatial series
+    data : TsdFrame or Tsd
+        Behavioral data
+    description : str, optional
+        Description of the data
+    unit : str, optional
+        Unit of measurement
+
+    Returns
+    -------
+    spatial_series_obj
+        The created SpatialSeries object
+    """
+    spatial_series_obj = SpatialSeries(
+        name=name,
+        description=description,
+        data=data.values,
+        timestamps=data.index.to_numpy(),
+        reference_frame='',
+        unit=unit
+    )
+    return spatial_series_obj
+
+
+def add_behavioural_data(nwbfile, data, name, description, unit):
+    """
+    Add behavioral data to nwbfile.
+
+    Parameters
+    ----------
+    nwbfile: NWBFile
+    data : TsdFrame or Tsd
+        Behavioral data
+    name : str
+        Name of the spatial series
+    description : str, optional
+        Description of the data
+    unit : str, optional
+        Unit of measurement
+
+    Returns
+    -------
+    nwbfile
+        nwbfile with behavioral data added to it
+    """
+    if 'behavior' in nwbfile.processing:
+        behavior_module = nwbfile.processing['behavior']
+    else:
+        behavior_module = nwbfile.create_processing_module(
+            name='behavior',
+            description='Behavioral data'
+        )
+    spatial_series_obj = create_spatial_series(name, data, description, unit)
+    position_obj = Position(spatial_series=spatial_series_obj)
+    behavior_module.add(position_obj)
+
+    return nwbfile
+
+
+def add_single_events(nwbfile, data, name, description, unit):
+    """
+    Add behavioral events to nwbfile.
+
+    Parameters
+    ----------
+    nwbfile: NWBFile
+    data : Tsd
+        Behavioral event data
+    name : str
+        Name of the time series
+    description : str, optional
+        Description of the data
+    unit : str, optional
+        Unit of measurement
+
+    Returns
+    -------
+    nwbfile
+        nwbfile with behavioral data added to it
+    """
+    if 'behavior' in nwbfile.processing:
+        behavior_module = nwbfile.processing['behavior']
+    else:
+        behavior_module = nwbfile.create_processing_module(
+            name='behavior',
+            description='Behavioral data'
+        )
+    time_series = TimeSeries(
+        name=name,
+        data=data.values,
+        timestamps=data.index.to_numpy(),
+        description=description,
+        unit=unit,
+    )
+    behavioral_events = BehavioralEvents(time_series=time_series, name=name)
+    behavior_module.add(behavioral_events)
+
+    return nwbfile
+
