@@ -551,7 +551,7 @@ def create_spatial_series(name, data, description, unit):
     return spatial_series_obj
 
 
-def add_behavioural_data(nwbfile, data, name, description, unit):
+def add_behavioral_data(nwbfile, data, name, description, unit):
     """
     Add behavioral data to nwbfile.
 
@@ -574,14 +574,21 @@ def add_behavioural_data(nwbfile, data, name, description, unit):
     """
     if 'behavior' in nwbfile.processing:
         behavior_module = nwbfile.processing['behavior']
+
     else:
         behavior_module = nwbfile.create_processing_module(
             name='behavior',
             description='Behavioral data'
         )
+
+    if 'Position' in behavior_module.containers:
+        position_obj = behavior_module.containers['Position']
+    else:
+        position_obj = Position(name='Position')
+        behavior_module.add(position_obj)
+
     spatial_series_obj = create_spatial_series(name, data, description, unit)
-    position_obj = Position(spatial_series=spatial_series_obj)
-    behavior_module.add(position_obj)
+    position_obj.add_spatial_series(spatial_series_obj)
 
     return nwbfile
 

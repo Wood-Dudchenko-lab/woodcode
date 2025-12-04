@@ -1,6 +1,4 @@
-from datetime import datetime
 import h5py
-import pytz
 from scipy import io as spio
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -9,6 +7,9 @@ import json
 import re
 import pynapple as nap
 import pprint
+from datetime import datetime
+import pytz
+from pathlib import Path
 
 
 def get_openephys_events(datapath, foldername, time_offset=0, skip_first=0):
@@ -93,11 +94,6 @@ def get_metadata(datapath, metaname, foldername):
     print("Metadata successfully imported.")
 
     return metadata_dict
-
-
-from datetime import datetime
-import pytz
-from pathlib import Path
 
 
 def get_start_time(datapath, foldername):
