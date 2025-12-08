@@ -1,6 +1,4 @@
-from datetime import datetime
 import h5py
-import pytz
 from scipy import io as spio
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -9,16 +7,19 @@ import json
 import re
 import pynapple as nap
 import pprint
+from datetime import datetime
+import pytz
+from pathlib import Path
 
 
 def get_openephys_events(datapath, foldername, time_offset=0, skip_first=0):
-# to do: account for instances when TTL is up at epoch edges
+    # to do: account for instances when TTL is up at epoch edges
 
     print('Importing events from OpenEphys npy files...')
     # importing events
     states = np.load(datapath / foldername / 'Analysis' / 'states.npy')
     timestamps = np.load(datapath / foldername / 'Analysis' / 'timestamps.npy')
-    events = pd.Series(states, index=timestamps+time_offset)
+    events = pd.Series(states, index=timestamps + time_offset)
     events = events.iloc[skip_first:]
 
     df = events.reset_index()
@@ -93,11 +94,6 @@ def get_metadata(datapath, metaname, foldername):
     print("Metadata successfully imported.")
 
     return metadata_dict
-
-
-from datetime import datetime
-import pytz
-from pathlib import Path
 
 
 def get_start_time(datapath, foldername):
@@ -223,6 +219,7 @@ def get_matlab_position(pos_file, vbl_name='pos'):
 
     return pos_tsdframe
 
+
 def get_matlab_hd(hd_file, vbl_name='ang'):
     """
     Loads head-direction data from a MATLAB .mat file,
@@ -253,6 +250,7 @@ def get_matlab_hd(hd_file, vbl_name='ang'):
 
     return hd_tsd
 
+
 def get_matlab_trackdistance(file_name, vbl_name='trackdist'):
     """
     Loads position from a MATLAB .mat file,
@@ -277,8 +275,8 @@ def get_matlab_trackdistance(file_name, vbl_name='trackdist'):
 
     return tsd
 
-def get_matlab_spikes(path):
 
+def get_matlab_spikes(path):
     print('Importing spikes and waveforms from .mat files...')
 
     # file names for spikes, angle, and epoch files
@@ -298,7 +296,7 @@ def get_matlab_spikes(path):
     waveforms = spio.loadmat(waveform_file, simplify_cells=True)
     waveforms = waveforms['meanWaveforms']
     wfeatures = spio.loadmat(wfeatures_file, simplify_cells=True)
-    shank_id = spikedata['shank']-1,
+    shank_id = spikedata['shank'] - 1,
     shank_id = shank_id[0]
     maxIx = wfeatures['maxIx']
 
@@ -385,7 +383,7 @@ def read_xml(file_path):
                 spike_groups.append(np.array(chan_group))
 
     data["spike_groups"] = spike_groups
-    #data["spike_groups"] = np.array(spike_groups, dtype="object")
+    # data["spike_groups"] = np.array(spike_groups, dtype="object")
 
     return data
 
@@ -473,7 +471,6 @@ def read_nrs(file_path):
     return data
 
 
-
 def read_metadata(file_path, file_name, print_output=False):
     """
     Reads an Excel metadata file and structures it into a dictionary,
@@ -535,7 +532,7 @@ def read_metadata(file_path, file_name, print_output=False):
 
     # Print metadata if print_output is True
     if print_output:
-        #print(json.dumps(metadata, indent=4, default=str))
+        # print(json.dumps(metadata, indent=4, default=str))
         pprint.pprint(metadata, width=100)
 
     return metadata
