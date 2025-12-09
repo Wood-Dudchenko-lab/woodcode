@@ -1,8 +1,6 @@
 import numpy as np
 from pathlib import Path
-import argparse
 import time
-import os
 
 """
 Calibrate pixel-to-centimeter conversion using a single video frame.
