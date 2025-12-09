@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "woodcode"
-version = "0.1.2"
+version = "0.1.4"
 description = "A python package for neural and behavioural data analysis in Wood/Dudchenko lab"
 readme = "README.md"
 authors = [
@@ -48,3 +48,6 @@ Homepage = "https://github.com/Wood-Dudchenko-lab/woodcode"
 
 [tool.setuptools.packages.find]
 include = ["woodcode", "woodcode.*"]
+
+[project.scripts]
+calibrate-tracking = "woodcode.video.calibrate_tracking:main"
