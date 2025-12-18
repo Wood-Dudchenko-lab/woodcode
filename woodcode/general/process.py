@@ -12,17 +12,6 @@ def trim_int_to_tsd(int, tsd):
     return new_int
 
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-
 def get_waveform_features(nwbfile, plot_result=False):
     """
     Extracts waveform features from an NWB file, selecting the waveform with the highest amplitude
