@@ -12,7 +12,7 @@ def trim_int_to_tsd(int, tsd):
     return new_int
 
 
-def get_waveform_features(nwbfile, plot_result=False):
+def get_waveform_features(nwbfile, plot_result=False, sampling_rate=None):
     """
     Extracts waveform features from an NWB file, selecting the waveform with the highest amplitude
     and computing trough-to-peak duration for each cell without upsampling.
@@ -23,6 +23,7 @@ def get_waveform_features(nwbfile, plot_result=False):
     Parameters:
     - nwbfile: NWB file object containing spike waveforms.
     - plot_result (bool, optional): Whether to plot the result. Default is False.
+    - sampling_rate (int, optional): Sampling rate of the waveform. Default is None - sampling_rate will be taken from nwb file
 
     Returns:
     - waveform_features (pd.DataFrame): DataFrame containing waveform features, including trough-to-peak durations.
@@ -31,7 +32,8 @@ def get_waveform_features(nwbfile, plot_result=False):
     # Get waveform and sampling rate info from the NWB file
     waveforms = nwbfile.nwb.units['waveform_mean'].data[:]
 
-    sampling_rate = nwbfile.nwb.units['sampling_rate'].data[0]
+    if sampling_rate is None:
+        sampling_rate = nwbfile.nwb.units['sampling_rate'].data[0]
 
     # Unpack shape dynamically
     n_cells, n_samples, n_channels = waveforms.shape
