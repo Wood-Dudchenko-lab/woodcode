@@ -69,14 +69,14 @@ def get_lap_intervals(track_pos_tsd, track_end=0.15, plot_result=False):
 
     pos_series = track_pos_tsd.as_series().dropna()
     if len(pos_series) < 2:
-        return {"direction_1": nap.IntervalSet(), "direction_2": nap.IntervalSet()}
+        return {"direction_1": nap.IntervalSet([],[]), "direction_2": nap.IntervalSet([],[])}
 
     timestamps = pos_series.index.values.astype(float)
     pos = pos_series.values
 
     pmin, pmax = pos.min(), pos.max()
     if pmin == pmax:
-        return {"direction_1": nap.IntervalSet(), "direction_2": nap.IntervalSet()}
+        return {"direction_1": nap.IntervalSet([],[]), "direction_2": nap.IntervalSet([],[])}
 
     # Normalize
     norm_pos = (pos - pmin) / (pmax - pmin)
