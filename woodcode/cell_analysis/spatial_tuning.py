@@ -155,7 +155,7 @@ def compute_1d_tuning_correlation(data1, data2, method: str = "pearson", circula
         return shift_correlations  # Shape: (n_bins, n_features)
 
 
-def compute_1d_occupancy(feature: nap.Tsd, nb_bins: int,
+def compute_occupancy_1d(feature: nap.Tsd, nb_bins: int,
                               minmax: tuple,
                               ep: nap.IntervalSet = None) -> pd.Series:
     """
@@ -238,51 +238,132 @@ def compute_vector_length(tcs):
     return pd.Series(vector_length, index=index, name="rayleigh_vector_length")
 
 
-def compute_hd_info(tcs, occ=None):
+def compute_spatial_info_1d(tcs, occ=None):
     """
-    Compute head-direction (HD) information (bits per spike) for each cell.
+    Compute 1D spatial / head-direction information (bits per spike) using the Skaggs measure.
+
+    This implements the classic information-per-spike metric:
+
+        I = Σ_i p_i * (λ_i / λ̄) * log2(λ_i / λ̄)
+
+    where:
+        - i indexes bins (spatial bins, head-direction bins, etc.)
+        - p_i is occupancy probability of bin i
+        - λ_i is the firing rate in bin i
+        - λ̄ = Σ_i p_i * λ_i is the occupancy-weighted mean firing rate
 
     Parameters
     ----------
-    tcs : numpy.ndarray or pandas.DataFrame
-        HD tuning curves, shape (n_bins, n_cells).
-    occ : numpy.ndarray, pandas.Series or pandas.DataFrame, optional
-        Occupancy distribution, shape (n_bins,) or (n_bins, 1).
+    tcs : array-like or pandas object
+        Tuning curve(s) expressed as non-negative firing rates per bin (e.g., Hz).
+
+        Accepted forms:
+          - Single tuning curve:
+              * np.ndarray of shape (n_bins,)
+              * pd.Series of length n_bins
+            Returns a scalar float.
+
+          - Multiple tuning curves:
+              * np.ndarray of shape (n_bins, n_cells)
+              * pd.DataFrame of shape (n_bins, n_cells)
+            Returns a pd.Series (length n_cells).
+
+        Notes for 2D rate maps:
+          - If you have a 2D place-field rate map (e.g., shape (nx, ny) per cell),
+            this function expects a 1D vector of bins. You can flatten the map
+            (and occupancy) before calling, e.g. `rate_map.ravel()` (and
+            `occ_map.ravel()`), or reshape to (n_bins, n_cells) for multiple cells.
+            Information will then be computed over the flattened bins.
+
+    occ : array-like, pandas object, optional
+        Occupancy distribution across bins (time spent / probability per bin).
+        Must have length n_bins. If provided, it will be normalised to sum to 1.
         If None, uniform occupancy is assumed.
 
     Returns
     -------
-    hd_info : pandas.Series
-        HD information values (bits per spike), indexed by cell if available.
+    spatial_info : float or pandas.Series
+        Skaggs information per spike (bits/spike).
+          - float for single input tuning curve
+          - pd.Series for multi-cell input
+
+    Raises
+    ------
+    ValueError
+        If `tcs` is not 1D or 2D, if `occ` length does not match n_bins,
+        or if `occ` sums to <= 0.
+
+    Notes
+    -----
+    - Bins with λ_i = 0 contribute 0 to the sum (handled safely by masking ratio <= 0).
+    - This is the naive (uncorrected) estimator and can be upward biased when spike
+      counts are low or sampling is sparse. Consider shuffle controls or
+      cross-validation for inference.
     """
-    # Convert tuning curves to array
-    tcs_arr = np.asarray(tcs, dtype=float)
 
-    # Handle occupancy
+    # ---- Determine input type / dimensionality ----
+    if isinstance(tcs, pd.Series):
+        # Single tuning curve (1 cell)
+        tcs_arr = tcs.to_numpy(dtype=float)[:, None]
+        is_single = True
+        out_index = None
+
+    elif isinstance(tcs, pd.DataFrame):
+        # Multiple tuning curves (many cells)
+        tcs_arr = tcs.to_numpy(dtype=float)
+        is_single = False
+        out_index = tcs.columns
+
+    else:
+        # NumPy / array-like
+        tcs_arr = np.asarray(tcs, dtype=float)
+
+        if tcs_arr.ndim == 1:
+            # Single tuning curve
+            tcs_arr = tcs_arr[:, None]
+            is_single = True
+            out_index = None
+
+        elif tcs_arr.ndim == 2:
+            # Multiple tuning curves
+            is_single = False
+            out_index = pd.RangeIndex(tcs_arr.shape[1], name="cell")
+
+        else:
+            raise ValueError("tcs must be 1D or 2D: (n_bins,) or (n_bins, n_cells)")
+
+    # ---- Basic shape check ----
+    n_bins, n_cells = tcs_arr.shape
+
+    # ---- Occupancy ----
     if occ is None:
-        occ_arr = np.full(tcs_arr.shape[0], 1.0 / tcs_arr.shape[0])
+        occ_arr = np.full(n_bins, 1.0 / n_bins)
     else:
+        # accept Series, array, column vector etc.
         occ_arr = np.asarray(occ, dtype=float).ravel()
-        occ_arr /= occ_arr.sum()
+        if occ_arr.shape[0] != n_bins:
+            raise ValueError(f"occ must have length {n_bins}, got {occ_arr.shape[0]}")
+        s = occ_arr.sum()
+        if s <= 0:
+            raise ValueError("occ must sum to > 0")
+        occ_arr = occ_arr / s
 
-    # Mean firing rate across bins (per cell)
-    f = occ_arr @ tcs_arr + 1e-12  # avoid div-by-zero
+    # ---- Skaggs info per spike ----
+    f = occ_arr @ tcs_arr                    # mean rate per cell, shape (n_cells,)
+    f_safe = np.where(f > 0, f, np.nan)      # avoid divide-by-zero
+    ratio = tcs_arr / f_safe                 # λ_i / λ̄
 
-    # Normalised rates (lambda / mean)
-    ratio = tcs_arr / f
+    mask = ratio > 0                         # only where log is defined
+    contrib = np.zeros_like(ratio)
+    contrib[mask] = (occ_arr[:, None] * ratio * np.log2(ratio))[mask]
 
-    # Compute info directly (ignoring bins where ratio <= 0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        contrib = occ_arr[:, None] * ratio * np.log2(ratio)
-    hd_info = np.nansum(contrib, axis=0)
+    info = np.nansum(contrib, axis=0)        # shape (n_cells,)
 
-    # Wrap into pandas.Series
-    if isinstance(tcs, pd.DataFrame):
-        index = tcs.columns
-    else:
-        index = pd.RangeIndex(tcs_arr.shape[1], name="cell")
+    # ---- Return type ----
+    if is_single:
+        return float(info[0])
 
-    return pd.Series(hd_info, index=index, name="hd_info")
+    return pd.Series(info, index=out_index, name="spatial_info")
 
 
 
